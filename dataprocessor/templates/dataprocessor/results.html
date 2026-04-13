@@ -1,0 +1,176 @@
+{% extends "dataprocessor/base.html" %}
+
+{% block title %}Нәтижелер — {{ file_record.original_name }}{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4>📊 Өңдеу нәтижесі: <em>{{ file_record.original_name }}</em></h4>
+    <div class="btn-group">
+        <a href="{% url 'download' file_record.pk %}?format=csv"
+           class="btn btn-outline-primary btn-sm">⬇ CSV</a>
+        <a href="{% url 'download' file_record.pk %}?format=json"
+           class="btn btn-outline-secondary btn-sm">⬇ JSON</a>
+    </div>
+</div>
+
+{% if result.error_message %}
+<div class="alert alert-danger">
+    <strong>Қате:</strong> {{ result.error_message }}
+</div>
+{% else %}
+
+<!-- ── Жалпы статистика карточкалары ── -->
+<div class="row g-3 mb-4">
+
+    {% if result.row_count is not None %}
+    <div class="col-sm-6 col-md-3">
+        <div class="card stat-card h-100 p-3">
+            <div class="text-muted small">Жол саны</div>
+            <div class="fs-3 fw-bold text-primary">{{ result.row_count }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <div class="card stat-card h-100 p-3">
+            <div class="text-muted small">Баған саны</div>
+            <div class="fs-3 fw-bold text-primary">{{ result.column_count }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if result.total_nulls is not None %}
+    <div class="col-sm-6 col-md-3">
+        <div class="card stat-card danger h-100 p-3">
+            <div class="text-muted small">Жалпы null саны</div>
+            <div class="fs-3 fw-bold text-danger">{{ result.total_nulls }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if result.processing_time is not None %}
+    <div class="col-sm-6 col-md-3">
+        <div class="card stat-card success h-100 p-3">
+            <div class="text-muted small">Өңдеу уақыты</div>
+            <div class="fs-3 fw-bold text-success">{{ result.processing_time }} сек</div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ── Баған атаулары ── -->
+{% if result.column_names %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header">📋 Баған атаулары</div>
+    <div class="card-body">
+        {% for col in result.column_names %}
+        <span class="badge bg-light text-dark border me-1 mb-1">{{ col }}</span>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Null мәндер кестесі ── -->
+{% if result.null_counts %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header">🔴 Бос мәндер (null) статистикасы</div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0 table-result">
+            <thead>
+                <tr><th>Баған</th><th>Null саны</th></tr>
+            </thead>
+            <tbody>
+                {% for col, cnt in result.null_counts.items %}
+                <tr class="{% if cnt > 0 %}table-warning{% endif %}">
+                    <td>{{ col }}</td>
+                    <td>{{ cnt }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Сандық статистика кестесі ── -->
+{% if result.numeric_stats %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header">📈 Сандық бағандар статистикасы</div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0 table-result">
+            <thead>
+                <tr><th>Баған</th><th>Min</th><th>Max</th><th>Орташа (Mean)</th></tr>
+            </thead>
+            <tbody>
+                {% for col, s in result.numeric_stats.stats.items %}
+                <tr>
+                    <td><strong>{{ col }}</strong></td>
+                    <td>{{ s.min }}</td>
+                    <td>{{ s.max }}</td>
+                    <td>{{ s.mean }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <!-- Диаграмма: сандық бағандар үшін bar chart -->
+    <div class="card-body">
+        <canvas id="statsChart" height="80"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Top-N мәндер ── -->
+{% if result.top_values %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header">🏆 Ең жиі кездесетін мәндер (Top-N)</div>
+    <div class="card-body">
+        {% for col, items in result.top_values.top_values.items %}
+        <h6 class="mt-2">{{ col }}</h6>
+        <table class="table table-sm table-bordered table-result">
+            <thead><tr><th>Мән</th><th>Саны</th></tr></thead>
+            <tbody>
+                {% for item in items %}
+                <tr><td>{{ item.value }}</td><td>{{ item.count }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endif %} {# end if not error #}
+
+<div class="mt-3">
+    <a href="{% url 'process' file_record.pk %}" class="btn btn-outline-primary me-2">↺ Қайта өңдеу</a>
+    <a href="{% url 'index' %}" class="btn btn-outline-secondary">← Бас бет</a>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+{% if result.numeric_stats %}
+<script>
+// Chart.js — сандық бағандар үшін bar chart
+const statsData = {{ result.numeric_stats|safe }};
+const labels = Object.keys(statsData.stats || {});
+const minData  = labels.map(k => statsData.stats[k].min);
+const maxData  = labels.map(k => statsData.stats[k].max);
+const meanData = labels.map(k => statsData.stats[k].mean);
+
+new Chart(document.getElementById('statsChart'), {
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [
+            { label: 'Min',    data: minData,  backgroundColor: 'rgba(13,110,253,0.5)' },
+            { label: 'Max',    data: maxData,  backgroundColor: 'rgba(220,53,69,0.5)' },
+            { label: 'Орташа', data: meanData, backgroundColor: 'rgba(25,135,84,0.5)' },
+        ]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'top' } } }
+});
+</script>
+{% endif %}
+{% endblock %}
