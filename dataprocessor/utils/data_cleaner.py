@@ -39,7 +39,13 @@ def get_shape(df: pd.DataFrame) -> dict:
     """
     # ▼▼▼ КОДТЫ ОСЫДАН БАСТАҢЫЗ ▼▼▼
 
-    raise NotImplementedError("get_shape() функциясын іске асырыңыз!")
+    # raise NotImplementedError("get_shape() функциясын іске асырыңыз!")
+    rows, cols = df.shape
+    return {
+        'row_count': rows,
+        'column_count': cols,
+        'column_names': df.columns.tolist()
+    }
 
     # ▲▲▲ КОДТЫ ОСЫМЕН АЯҚТАҢЫЗ ▲▲▲
 
@@ -71,7 +77,19 @@ def get_null_info(df: pd.DataFrame) -> dict:
     """
     # ▼▼▼ КОДТЫ ОСЫДАН БАСТАҢЫЗ ▼▼▼
 
-    raise NotImplementedError("get_null_info() функциясын іске асырыңыз!")
+    # raise NotImplementedError("get_null_info() функциясын іске асырыңыз!")
+    null_series = df.isnull().sum()
+    total_rows = len(df)
+
+    null_counts = null_series.to_dict()
+    null_percent = {col: (count / total_rows * 100) if total_rows > 0 else 0
+                    for col, count in null_counts.items()}
+
+    return {
+        'null_counts': null_counts,
+        'total_nulls': int(null_series.sum()),
+        'null_percent': null_percent
+    }
 
     # ▲▲▲ КОДТЫ ОСЫМЕН АЯҚТАҢЫЗ ▲▲▲
 
@@ -106,7 +124,21 @@ def get_numeric_stats(df: pd.DataFrame) -> dict:
     """
     # ▼▼▼ КОДТЫ ОСЫДАН БАСТАҢЫЗ ▼▼▼
 
-    raise NotImplementedError("get_numeric_stats() функциясын іске асырыңыз!")
+    # raise NotImplementedError("get_numeric_stats() функциясын іске асырыңыз!")
+    numeric_df = df.select_dtypes(include='number')
+    stats_dict = {}
+
+    for col in numeric_df.columns:
+        stats_dict[col] = {
+            'min': round(float(numeric_df[col].min()), 2),
+            'max': round(float(numeric_df[col].max()), 2),
+            'mean': round(float(numeric_df[col].mean()), 2)
+        }
+
+    return {
+        'stats': stats_dict,
+        'numeric_columns': numeric_df.columns.tolist()
+    }
 
     # ▲▲▲ КОДТЫ ОСЫМЕН АЯҚТАҢЫЗ ▲▲▲
 
@@ -145,7 +177,17 @@ def get_top_values(df: pd.DataFrame, top_n: int = 5) -> dict:
     """
     # ▼▼▼ КОДТЫ ОСЫДАН БАСТАҢЫЗ ▼▼▼
 
-    raise NotImplementedError("get_top_values() функциясын іске асырыңыз!")
+    # raise NotImplementedError("get_top_values() функциясын іске асырыңыз!")
+    top_values_res = {}
+
+    for col in df.columns:
+        counts = df[col].value_counts().head(top_n)
+        top_values_res[col] = [
+            {'value': str(val), 'count': int(count)}
+            for val, count in counts.items()
+        ]
+
+    return {'top_values': top_values_res}
 
     # ▲▲▲ КОДТЫ ОСЫМЕН АЯҚТАҢЫЗ ▲▲▲
 
@@ -175,10 +217,15 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     # ▼▼▼ КОДТЫ ОСЫДАН БАСТАҢЫЗ ▼▼▼
 
-    # Мысал (студент толықтырады):
     cleaned_df = df.copy()
 
-    # TODO: тазалау операцияларын қосыңыз
+    cleaned_df = cleaned_df.drop_duplicates()
+
+    cleaned_df.columns = cleaned_df.columns.str.lower()
+
+    string_cols = cleaned_df.select_dtypes(include='object').columns
+    for col in string_cols:
+        cleaned_df[col] = cleaned_df[col].astype(str).str.strip()
 
     return cleaned_df
 
